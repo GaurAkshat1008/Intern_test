@@ -46,9 +46,10 @@ export function FirebaseProvider({ children }) {
     const historyHomestayRef = collection(db, "historyHomestay");
     const unsub1 = onSnapshot(historyHomestayRef, (snapshot) => {
       console.log("listener1 attached");
-      
-        snapshot.docs.map(async (document) => {
-          document.data().current && document.data().current.forEach(async (element) => {
+
+      snapshot.docs.map(async (document) => {
+        document.data().current &&
+          document.data().current.forEach(async (element) => {
             if (element.checkOutTime.seconds <= Timestamp.now().seconds) {
               await setDoc(
                 doc(db, "historyHomestay", document.id),
@@ -65,10 +66,10 @@ export function FirebaseProvider({ children }) {
 
     const unsub2 = onSnapshot(historyUserRef, (snapshot) => {
       console.log("listener2 attached");
-     
-        snapshot.docs.map((document) => {
-        
-          document.data().current && document.data().current.forEach(async (element) => {
+
+      snapshot.docs.map((document) => {
+        document.data().current &&
+          document.data().current.forEach(async (element) => {
             if (element.checkOutTime.seconds < Timestamp.now().seconds) {
               await setDoc(
                 doc(db, "historyUser", document.id),
@@ -78,7 +79,7 @@ export function FirebaseProvider({ children }) {
                 },
                 { merge: true }
               );
-            } 
+            }
           });
       });
     });
@@ -137,7 +138,6 @@ export function FirebaseProvider({ children }) {
       cancelled: [],
     });
     await addDoc(collection(db, "Homes"), {
-      
       homestayName,
       URLS: imageUrls,
       desc,
@@ -145,7 +145,6 @@ export function FirebaseProvider({ children }) {
       active: true,
       ratings: [],
       host: {
-        
         name,
         email,
         phone,
@@ -154,7 +153,6 @@ export function FirebaseProvider({ children }) {
         children,
       },
       Rules: {
-        
         petAllowance,
         alcoholTolerant,
         coupleFriendly,
@@ -203,7 +201,7 @@ export function FirebaseProvider({ children }) {
 
   async function addComment(id = "wdFQ8rBHcAYaPzelHNb3", head, user, body) {
     const commentRef = doc(db, "Homes", id);
-    if(head.trim().length === 0 || body.trim().length === 0 || !user){
+    if (head.trim().length === 0 || body.trim().length === 0 || !user) {
       return console.log("please enter valid values of user, head and body");
     }
 
@@ -218,9 +216,7 @@ export function FirebaseProvider({ children }) {
   }
 
   async function addRating(id = "wdFQ8rBHcAYaPzelHNb3", stars, user) {
-    
-
-    if(stars === 0){
+    if (stars === 0) {
       return console.log("please enter valid values of star");
     }
     const ratingRef = doc(db, "Homes", id);
@@ -252,10 +248,9 @@ export function FirebaseProvider({ children }) {
     const historyUserRef = doc(db, "historyUser", emailUser);
     const historyHomestayRef = doc(db, "historyHomestay", emailOwner);
     const bookedAt = Timestamp.now();
-    
+
     try {
       const bookHome = await runTransaction(db, async (transaction) => {
-        
         transaction.set(
           historyHomestayRef,
           {
@@ -350,7 +345,7 @@ export function FirebaseProvider({ children }) {
   ) {
     const historyHomestayRef = doc(db, "historyHomestay", emailOwner);
     const historyUserRef = doc(db, "historyUser", emailUser);
-   
+
     try {
       const bookHome = await runTransaction(db, async (transaction) => {
         transaction.set(
@@ -423,7 +418,6 @@ export function FirebaseProvider({ children }) {
       console.log("Transaction failed: ", e);
     }
   }
-
 
   async function getHomeHistory(homes, checkIn, checkOut) {
     const final = await homes.map(async (val) => {
@@ -504,9 +498,7 @@ export function FirebaseProvider({ children }) {
         { expires: 7 }
       );
       window.location.reload();
-    } catch (error) {
-     
-    }
+    } catch (error) {}
   }
 
   async function sendMail(
@@ -558,6 +550,56 @@ export function FirebaseProvider({ children }) {
     return false;
   }
 
+  async function chatWithOwner(homestayId, message) {
+    const user = getUserCookies();
+    if (user) {
+      const chatsRef = collection(db, "chats");
+      const q = query(
+        chatsRef,
+        where("homestayId", "==", homestayId),
+        where("userEmail", "==", user.details.email)
+      );
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.docs.length > 0) {
+        const chatId = querySnapshot.docs[0].id;
+        const chatRef = doc(db, "chats", chatId);
+        await updateDoc(chatRef, {
+          messages: arrayUnion({
+            message,
+            timestamp: Timestamp.now(),
+            from: user.details.email,
+          }),
+        });
+      } else {
+        await addDoc(collection(db, "chats"), {
+          homestayId,
+          userEmail: user.details.email,
+          messages: [
+            {
+              message,
+              timestamp: Timestamp.now(),
+              from: user.details.email,
+            },
+          ],
+        });
+      }
+    }
+  }
+
+  async function getChatsOfUser() {
+    const user = getUserCookies();
+    if (user) {
+      const chatsRef = collection(db, "chats");
+      const q = query(chatsRef, where("userEmail", "==", user.details.email));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.docs.length > 0) {
+        return querySnapshot.docs;
+      }
+      return false;
+    }
+    return false;
+  }
+
   function signOut() {
     Cookies.remove("user", { expires: 7 });
     window.location.reload();
@@ -579,8 +621,9 @@ export function FirebaseProvider({ children }) {
     checkUserCookies,
     getUserCookies,
     signOut,
+    chatWithOwner,
+    getChatsOfUser
   };
-
   return (
     <FirebaseContext.Provider value={value}>
       {!loading && children}
